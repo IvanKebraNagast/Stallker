@@ -1,7 +1,7 @@
 {
-  "name": "Stallker – moje adresy",
-  "short_name": "Stallker",
-  "start_url": "./stallker.html",
+  "name": "Stallker GPS Tracker",
+  "short_name": "Stallker GPS",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0f1115",
