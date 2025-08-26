@@ -1,5 +1,5 @@
 // Stallker PWA service worker (ikonka je v koreňovom priečinku ako icon.png)
-const CACHE = 'stallker-v5';
+const CACHE = 'stallker-v6';
 
 const ASSETS = [
   './index.html',
