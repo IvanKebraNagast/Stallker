@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Stallker – moje adresy</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#151821">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root { --header-h:64px; color-scheme: light dark; }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+         display:grid;grid-template-rows:auto 1fr;background:#0f1115;color:#e7e7ea}
+
+    header{position:sticky;top:0;z-index:30;padding:.6rem;gap:.5rem;display:flex;flex-wrap:wrap;align-items:center;
+           background:#151821;border-bottom:1px solid #242938}
+    header h1{margin:0 .5rem 0 0;font-size:1rem;opacity:.9;white-space:nowrap}
+    .chip{border:1px solid #2a3042;background:#1b2030;color:#cfd3da;padding:.28rem .55rem;border-radius:.6rem;font-size:.85rem}
+
+    .btn{position:relative;overflow:hidden;appearance:none;cursor:pointer;user-select:none;
+         border:1px solid #2a3042;background:#1b2030;color:#e7e7ea;padding:.5rem .78rem;border-radius:.8rem;
+         font-weight:650;font-size:.92rem;box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 6px 16px rgba(0,0,0,.25);
+         transition:transform .08s ease,filter .15s ease,box-shadow .2s ease,background-color .2s,border-color .2s}
+    .btn:hover{filter:brightness(1.07)}
+    .btn:active{transform:translateY(1px) scale(.985);box-shadow:0 0 0 rgba(0,0,0,0),0 2px 8px rgba(0,0,0,.22)}
+    .btn.primary{background:#16a34a;border-color:#15803d;color:#fff}
+    .btn.warn{background:#d97706;border-color:#b45309;color:#fff}
+    .btn.danger{background:#ef4444;border-color:#dc2626;color:#fff}
+    .btn.ghost{background:transparent}
+    .btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+    .btn .ripple{position:absolute;border-radius:9999px;transform:scale(0);background:currentColor;opacity:.35;pointer-events:none;animation:ripple .6s ease-out}
+    @keyframes ripple{to{transform:scale(18);opacity:0}}
+    .grow{flex:1 1 auto}
+
+    #map{width:100%;height:100%}
+    .leaflet-container{background:#0f1115}
+
+    .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:9998}
+    .panel{position:fixed;right:12px;top:calc(var(--header-h) + 12px);width:min(380px,92vw);max-height:70vh;overflow:auto;
+           background:#151821;border:1px solid #2a3042;color:#e7e7ea;border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.45);
+           padding:.7rem;display:none;z-index:9999}
+    .panel.open{display:block}.backdrop.open{display:block}
+    .item{border:1px dashed #2a3042;border-radius:.6rem;padding:.55rem;margin-bottom:.5rem;background:#0f131e}
+    .row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+    .muted{opacity:.7}
+
+    .marker{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:700 12px/1 system-ui,sans-serif;color:#fff;border:2px solid rgba(255,255,255,.9);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+    .marker.start{background:#16a34a}.marker.stop{background:#d97706}
+    .leaflet-popup-content{inline-size:min(60ch,80vw)}
+
+    .modal{position:fixed;inset:0;z-index:10000;display:none}
+    .modal.open{display:block}
+    .modal>.shade{position:absolute;inset:0;background:rgba(0,0,0,.55)}
+    .modal>.card{position:absolute;inset:auto 0 0 0;margin:auto;top:12vh;width:min(520px,92vw);background:#151821;border:1px solid #2a3042;color:#e7e7ea;border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.45);padding:1rem}
+    .fld{display:flex;flex-direction:column;gap:.35rem;margin:.6rem 0}
+    label{font-weight:600}
+    .switch{display:flex;align-items:center;gap:.6rem}
+    input[type="text"],input[type="number"]{padding:.55rem .7rem;border-radius:.6rem;border:1px solid #2a3042;background:#0f131e;color:#e7e7ea}
+  </style>
+</head>
+<body>
+  <header id="hdr">
+    <h1>📍 Stallker</h1>
+    <span class="chip">vytvoril: <strong>IvanKebraNagast</strong></span>
+
+    <button id="btnLocate" class="btn">🎯 Zamerať ma</button>
+    <button id="btnStart" class="btn primary" disabled>Nastaviť štart</button>
+    <button id="btnAddNow" class="btn" disabled>Pridať bod na mape</button>
+    <button id="btnAuto" class="btn ghost" title="Auto-log s detekciou zastávok (45 s)">▶️ Auto-log: Vyp.</button>
+
+    <span class="grow"></span>
+    <button id="btnSettings" class="btn">⚙️ Nastavenia</button>
+    <button id="btnToggleList" class="btn">Zoznam</button>
+    <button id="btnExport" class="btn warn">Export</button>
+    <button id="btnClear" class="btn danger">Zmazať</button>
+  </header>
+
+  <div id="map"></div>
+
+  <!-- Zoznam -->
+  <div id="panel" class="panel" role="dialog" aria-label="Uložené body">
+    <div class="row" style="justify-content:space-between;margin-bottom:.5rem">
+      <h3 style="margin:0">Uložené body</h3>
+      <button id="btnClosePanel" class="btn danger" style="padding:.3rem .6rem">✕</button>
+    </div>
+    <div id="list"></div>
+    <p id="emptyMsg" class="muted" style="display:none">Zatiaľ nič uložené.</p>
+  </div>
+  <div id="backdrop" class="backdrop" aria-hidden="true"></div>
+
+  <!-- Nastavenia -->
+  <div id="settings" class="modal" role="dialog" aria-label="Nastavenia">
+    <div class="shade"></div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:.5rem">
+        <h3 style="margin:0">Nastavenia</h3>
+        <button id="btnCloseSettings" class="btn danger" style="padding:.3rem .6rem">✕</button>
+      </div>
+      <div class="fld switch">
+        <input id="chkAutoOnAdd" type="checkbox" checked />
+        <label for="chkAutoOnAdd">Pri „Pridať bod na mape“ automaticky rýchlo zamerať (odporúčané na iPhone)</label>
+      </div>
+      <div class="fld switch">
+        <input id="chkWake" type="checkbox"/>
+        <label for="chkWake">Udržať obrazovku bdelú pri Auto-log (Wake Lock)
+          <span id="iosNote" class="muted" style="display:none"> – na iPhone Safari/PWA nie je podporované</span>
+        </label>
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:.6rem">
+        <button id="btnSaveSettings" class="btn primary">Uložiť</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ===== Stav & pomocné ===== */
+    const STORAGE_KEY='stallker_body_v1';
+    const SETTINGS_KEY='stallker_settings_v2';
+    let points=[]; let map, polyline; let markers=new Map();
+    let lastLocated=null, lastLocatedAt=0;
+    let meMarker=null, meAccuracy=null, meAccTimer=null, meAccFadeRaf=null;
+    let autoWatchId=null; let wakeLock=null;
+    let settings={ autoOnAdd:true, wake:false };
+    const $=s=>document.querySelector(s);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+    /* ===== Detekcia zastávok (Auto-log) ===== */
+    const STOP_DWELL_MS = 45000;   // stáť aspoň 45 s
+    const STOP_RADIUS_M = 20;      // do 20 m od kotvy stále stojím
+    const STOP_EXIT_M   = 35;      // musím sa vzdialiť 35 m, aby bolo možné pridať ďalšiu zastávku
+
+    let stopAnchor = null;         // {lat, lon, sinceTs}
+    let atStop = false;            // či sme už „v zastávke“
+    let lastStopLL = null;         // naposledy pridaný stop (na deduplikáciu)
+    let startAdded = false;        // či už bol pridaný „Štart“ po zapnutí Auto-logu
+
+    function distM(a,b){ const R=6371000,toRad=x=>x*Math.PI/180;
+      const dLat=toRad(b.lat-a.lat), dLon=toRad(b.lon-a.lon), la1=toRad(a.lat), la2=toRad(b.lat);
+      const h=Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
+      return 2*R*Math.asin(Math.sqrt(h));
+    }
+
+    function loadSaved(){ try{points=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{points=[]} }
+    function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(points)) }
+    function loadSettings(){ try{settings=Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}'))}catch{} }
+    function saveSettings(){ localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)) }
+    const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+    const fmtTime=ts=>new Date(ts).toLocaleString();
+    function enableAddButtons(on){ $('#btnStart').disabled=!on; $('#btnAddNow').disabled=!on; }
+
+    /* zvuk + ripple */
+    let audioCtx;
+    function clickSound(){ audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+      const t=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.type='triangle'; o.frequency.setValueAtTime(1000,t); o.frequency.exponentialRampToValueAtTime(420,t+.08);
+      g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.07,t+.01); g.gain.exponentialRampToValueAtTime(.00001,t+.12);
+      o.connect(g).connect(audioCtx.destination); o.start(t); o.stop(t+.13);}
+    function ripple(ev){ const b=ev.target.closest('.btn'); if(!b) return; const r=document.createElement('span'); const rc=b.getBoundingClientRect(); const s=Math.max(rc.width,rc.height);
+      r.className='ripple'; r.style.width=r.style.height=s+'px'; r.style.left=(ev.clientX-rc.left-s/2)+'px'; r.style.top=(ev.clientY-rc.top-s/2)+'px';
+      b.appendChild(r); r.addEventListener('animationend',()=>r.remove());}
+    document.addEventListener('click',ev=>{ if(ev.target.closest('.btn')){ clickSound(); ripple(ev);} });
+
+    /* mapa */
+    function createDivIcon(type,label){
+      return L.divIcon({className:'', html:`<div class="marker ${type}">${label}</div>`, iconSize:[28,28], iconAnchor:[14,14], popupAnchor:[0,-12]});
+    }
+    function rebuildPolyline(){
+      const latlngs=points.map(p=>[p.lat,p.lon]);
+      if(!polyline){ polyline=L.polyline(latlngs,{weight:4,opacity:.75,color:'#6ba3ff'}).addTo(map); }
+      else polyline.setLatLngs(latlngs);
+    }
+    function addMarkerForPoint(p){
+      const order=points.filter(x=>x.type===p.type && x.ts<=p.ts).length;
+      const label=p.type==='start'?'S':String(order);
+      const m=L.marker([p.lat,p.lon],{icon:createDivIcon(p.type,label)})
+        .bindPopup(`<b>${p.type==='start'?'Štart':'Zastávka'}</b><br>${p.address||'Bez adresy'}<br><small>${fmtTime(p.ts)}</small>`).addTo(map);
+      markers.set(p.id,m);
+    }
+    function refreshMarkers(){ markers.forEach(m=>m.remove()); markers.clear(); points.forEach(addMarkerForPoint); rebuildPolyline(); }
+    function renderList(){
+      const list=$('#list'), empty=$('#emptyMsg'); list.innerHTML=''; if(!points.length){ empty.style.display=''; return; } empty.style.display='none';
+      points.forEach((p,idx)=>{
+        const el=document.createElement('div'); el.className='item';
+        el.innerHTML=`<div class="row" style="justify-content:space-between;"><strong>${p.type==='start'?'🟢 Štart':'🟠 Zastávka #'+idx}</strong><small>${fmtTime(p.ts)}</small></div>
+        <div style="margin:.35rem 0 .25rem">${p.address||'<span class="muted">Bez adresy</span>'}</div>
+        <small class="muted">(${p.lat.toFixed(6)}, ${p.lon.toFixed(6)})</small>
+        <div class="row" style="margin-top:.5rem"><button class="btn" data-act="fly">Zamerať</button><button class="btn danger" data-act="del">Zmazať</button></div>`;
+        el.querySelector('[data-act="fly"]').onclick=()=>{ map.flyTo([p.lat,p.lon],Math.max(map.getZoom(),16),{duration:.6}); const m=markers.get(p.id); if(m) m.openPopup(); };
+        el.querySelector('[data-act="del"]').onclick=()=>{ if(!confirm('Odstrániť bod?'))return; points=points.filter(x=>x.id!==p.id); save(); refreshMarkers(); renderList(); };
+        list.appendChild(el);
+      });
+    }
+
+    /* geocoding */
+    async function reverseGeocode(lat,lon){
+      try{ const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`); if(!r.ok) throw 0; const d=await r.json(); return d.display_name||''; }
+      catch{ return ''; }
+    }
+    async function addPoint({lat,lon,type,address}){
+      if(!address) address=await reverseGeocode(lat,lon);
+      const p={id:uid(),lat,lon,address,type,ts:Date.now()};
+      points.push(p); save(); addMarkerForPoint(p); rebuildPolyline(); renderList();
+    }
+
+    /* GPS */
+    function getPos(){
+      return new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(
+        pos=>res(pos.coords), rej, {enableHighAccuracy:true, timeout:20000, maximumAge:0}
+      ));
+    }
+    async function ensureFreshLocation(maxAgeMs=60000){
+      const now=Date.now();
+      if(!lastLocated || (now - lastLocatedAt) > maxAgeMs){
+        const c = await getPos();
+        lastLocated = c; lastLocatedAt = Date.now();
+      }
+    }
+
+    /* accuracy kruh auto-hide */
+    function scheduleAccuracyHide(){
+      const SHOW_MS=10000, FADE_MS=800;
+      if(meAccTimer) clearTimeout(meAccTimer);
+      if(meAccFadeRaf) cancelAnimationFrame(meAccFadeRaf);
+      if(!meAccuracy) return;
+      meAccTimer=setTimeout(()=>{
+        const start=performance.now(), startFill=.08;
+        (function step(now){
+          const t=Math.min(1,(now-start)/FADE_MS), fill=startFill*(1-t), stroke=Math.max(0,fill*1.2), weight=3*(1-t);
+          if(meAccuracy) meAccuracy.setStyle({fillOpacity:fill,opacity:stroke,weight});
+          if(t<1) meAccFadeRaf=requestAnimationFrame(step); else { if(meAccuracy){map.removeLayer(meAccuracy); meAccuracy=null;} }
+        })(start);
+      }, Math.max(0, SHOW_MS-FADE_MS));
+    }
+
+    async function locateMe(){
+      try{
+        const c = await getPos(); const ll=[c.latitude,c.longitude];
+        lastLocated=c; lastLocatedAt=Date.now(); enableAddButtons(true);
+        if(!meMarker){ meMarker=L.circleMarker(ll,{radius:6,color:'#16a34a',fillColor:'#16a34a',fillOpacity:1}).addTo(map).bindPopup('Tvoja poloha'); }
+        else{ meMarker.setLatLng(ll); }
+        if(meAccuracy){ map.removeLayer(meAccuracy); meAccuracy=null; }
+        meAccuracy=L.circle(ll,{radius:c.accuracy||30,color:'#16a34a',fillColor:'#16a34a',fillOpacity:.08,weight:3}).addTo(map);
+        map.flyTo(ll,17,{duration:.6}); meMarker.openPopup(); scheduleAccuracyHide();
+      }catch{ alert('Poloha nedostupná. Spusť cez HTTPS a povoľ „Presná poloha“.'); }
+    }
+
+    async function addFromLocated(type){
+      try{
+        if(settings.autoOnAdd) { await ensureFreshLocation(60000); }
+        if(!lastLocated){ alert('Najprv klikni „Zamerať ma“.'); return; }
+        await addPoint({ lat:lastLocated.latitude, lon:lastLocated.longitude, type });
+      }catch{ alert('Nepodarilo sa získať polohu. Skús znova alebo klikni „Zamerať ma“.'); }
+    }
+
+    /* Auto-log – s detekciou zastávok (45 s) 
+       POZOR: na iPhone (PWA) funguje len pri zapnutej obrazovke a v popredí. */
+    function toggleAuto(){
+      if(autoWatchId){
+        navigator.geolocation.clearWatch(autoWatchId); autoWatchId=null;
+        $('#btnAuto').textContent='▶️ Auto-log: Vyp.';
+        return;
+      }
+      // reset stavov
+      stopAnchor=null; atStop=false; lastStopLL=null; startAdded=false;
+
+      autoWatchId=navigator.geolocation.watchPosition(async pos=>{
+        const c=pos.coords; lastLocated=c; lastLocatedAt=Date.now(); enableAddButtons(true);
+        const nowLL={lat:c.latitude, lon:c.longitude};
+
+        // 1) Prvé fixnutie → ak ešte nie je žiadny bod, pridaj Štart
+        if(!startAdded){
+          const hasAnyPoint = points.length>0;
+          if(!hasAnyPoint){ await addPoint({lat:nowLL.lat,lon:nowLL.lon,type:'start'}); }
+          startAdded = true;
+        }
+
+        // 2) Stop detektor
+        if(!stopAnchor){
+          stopAnchor = { ...nowLL, sinceTs: Date.now() };
+          return;
+        }
+
+        const dFromAnchor = distM(stopAnchor, nowLL);
+
+        if(dFromAnchor <= STOP_RADIUS_M){
+          // stále sme blízko kotvy
+          const dwell = Date.now() - stopAnchor.sinceTs;
+          if(!atStop && dwell >= STOP_DWELL_MS){
+            // kandidát na zastávku – skús deduplikovať s posledným stopom
+            const isDuplicate = lastStopLL && distM(lastStopLL, nowLL) < STOP_RADIUS_M;
+            if(!isDuplicate){
+              await addPoint({lat:nowLL.lat,lon:nowLL.lon,type:'stop'});
+              atStop = true;
+              lastStopLL = nowLL;
+            }
+          }
+        } else {
+          // pohli sme sa mimo STOP_RADIUS
+          if(atStop){
+            // čakáme, kým sa vzdialime ešte o STOP_EXIT_M, aby sa mohol chytiť ďalší stop
+            if(distM(lastStopLL || stopAnchor, nowLL) >= STOP_EXIT_M){
+              atStop = false;
+              stopAnchor = { ...nowLL, sinceTs: Date.now() };
+            }
+          } else {
+            // pohyb – posuň kotvu
+            stopAnchor = { ...nowLL, sinceTs: Date.now() };
+          }
+        }
+      }, err=>{
+        alert('Auto-log: '+err.message);
+        toggleAuto(); // vypni pri chybe
+      }, {enableHighAccuracy:true,maximumAge:5000,timeout:20000});
+
+      $('#btnAuto').textContent='⏸️ Auto-log: Zap.';
+      if(settings.wake && 'wakeLock' in navigator && !isIOS){ requestWake(); }
+    }
+
+    async function requestWake(){ try{ if('wakeLock' in navigator){ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>{}); } }catch{} }
+
+    /* Init */
+    (async function init(){
+      document.documentElement.style.setProperty('--header-h', $('#hdr').offsetHeight + 'px');
+      loadSaved(); loadSettings();
+
+      if(isIOS){ $('#iosNote').style.display='inline'; }
+
+      map=L.map('map'); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+      try{ const c=await getPos(); map.setView([c.latitude,c.longitude],15); }catch{ map.setView([48.1486,17.1077],12); }
+      refreshMarkers(); renderList();
+
+      $('#btnLocate').onclick=locateMe;
+      $('#btnStart').onclick=()=>addFromLocated('start');
+      $('#btnAddNow').onclick=()=>addFromLocated('stop');
+      $('#btnAuto').onclick=toggleAuto;
+
+      $('#btnExport').onclick=()=>{ const blob=new Blob([JSON.stringify(points,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='stallker-adresy.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); };
+      $('#btnClear').onclick=()=>{ if(confirm('Zmazať všetko?')){ points=[]; save(); refreshMarkers(); renderList(); } };
+      $('#btnToggleList').onclick=()=>{ $('#panel').classList.add('open'); $('#backdrop').classList.add('open'); };
+      $('#btnClosePanel').onclick=()=>{ $('#panel').classList.remove('open'); $('#backdrop').classList.remove('open'); };
+
+      $('#btnSettings').onclick=()=>{ $('#settings').classList.add('open'); $('#chkAutoOnAdd').checked=!!settings.autoOnAdd; $('#chkWake').checked=!!settings.wake; if(isIOS) $('#chkWake').disabled=true; };
+      $('#btnCloseSettings').onclick=()=>$('#settings').classList.remove('open');
+      $('#btnSaveSettings').onclick=()=>{ settings.autoOnAdd=$('#chkAutoOnAdd').checked; settings.wake=!isIOS && $('#chkWake').checked; saveSettings(); $('#settings').classList.remove('open'); };
+
+      enableAddButtons(!!lastLocated);
+    })();
+  </script>
+
+  <!-- registrácia service workera -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(console.error);
+    }
+  </script>
+</body>
+</html>
