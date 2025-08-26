@@ -1,0 +1,13 @@
+{
+  "name": "Stallker – moje adresy",
+  "short_name": "Stallker",
+  "start_url": "./stallker.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#151821",
+  "icons": [
+    { "src": "icons/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "icons/icon-512.png", "type": "image/png", "sizes": "512x512" }
+  ]
+}
